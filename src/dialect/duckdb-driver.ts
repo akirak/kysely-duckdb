@@ -262,19 +262,9 @@ function processRows(
       const value = parsedRow[key]
       const columnIndex = columnNameToIndex.get(key)
 
-      if (columnIndex !== undefined) {
-        // Parse JSON columns (guaranteed valid by DuckDB)
-        if (jsonColumnIndices.has(columnIndex) && typeof value === 'string') {
-          parsedRow[key] = JSON.parse(value)
-        }
-        // Convert UUID objects to strings
-        else if (isDuckDBUUIDInstance(value) && value != null && uuidAsString) {
-          parsedRow[key] = convertUuidToString(value)
-        }
-        // Convert DuckDBListValue to plain arrays
-        else if (value instanceof DuckDBListValue) {
-          parsedRow[key] = value.items
-        }
+      // Parse JSON columns (guaranteed valid by DuckDB)
+      if (columnIndex !== undefined && jsonColumnIndices.has(columnIndex) && typeof value === 'string') {
+        parsedRow[key] = JSON.parse(value)
       }
     })
 
