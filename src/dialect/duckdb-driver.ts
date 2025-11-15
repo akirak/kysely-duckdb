@@ -2,9 +2,13 @@ import * as DuckDBAPI from '@duckdb/node-api'
 import {
   type DuckDBConnection,
   type DuckDBInstance,
-  DuckDBListValue,
   type DuckDBResultReader,
   type DuckDBValue,
+  JSDuckDBValueConverter,
+  type DuckDBValueConverter,
+  type JS,
+  DuckDBUUIDValue,
+  DuckDBTypeId,
 } from '@duckdb/node-api'
 import type { DatabaseConnection, Driver, TransactionSettings } from 'kysely'
 import { CompiledQuery, type QueryResult } from 'kysely'
@@ -16,6 +20,11 @@ import type {
   DuckDBUUIDConstructor,
   DuckDBUUIDObject,
 } from '../types/duckdb-bindings.js'
+
+type DuckDbResultValue = JS | DuckDBUUIDValue
+
+const JSDuckDbResultConverter =
+  JSDuckDBValueConverter as DuckDBValueConverter<DuckDbResultValue>
 
 // Precompute minimal UUID helpers at module scope to avoid per-call detection overhead
 // Note: DuckDBUUIDValue class is not always exposed by the runtime API
@@ -215,7 +224,6 @@ function prepareSQLWithParams(compiledQuery: CompiledQuery): {
 function processRows(
   rows: unknown[],
   result: DuckDBResultReader,
-  uuidAsString: boolean,
 ): unknown[] {
   // Get column metadata to identify JSON columns (cached per result)
   const columnTypesRaw = result.columnTypesJson()
@@ -340,11 +348,24 @@ export class DuckDbDriver implements Driver {
 class DuckDbConnection implements DatabaseConnection {
   readonly #database: DuckDBInstance // DuckDB Database instance
   #connection: DuckDBConnection | null = null // Active DuckDB connection for transactions
-  readonly #uuidAsString: boolean
+  readonly #converter: DuckDBValueConverter<DuckDbResultValue>
 
   constructor(database: DuckDBInstance, options: InternalDuckDbDialectConfig) {
     this.#database = database
-    this.#uuidAsString = options.uuidAsString
+    if (options.uuidAsString) {
+      this.#converter = JSDuckDbResultConverter
+    }
+    else {
+      this.#converter = (value, type, converter) => {
+        if (value == null) {
+          return null
+        }
+        if (type?.typeId === DuckDBTypeId.UUID) {
+          return value as DuckDBUUIDValue
+        }
+        return JSDuckDbResultConverter(value, type, converter)
+      }
+    }
   }
 
   async executeQuery<O>(compiledQuery: CompiledQuery): Promise<QueryResult<O>> {
@@ -477,14 +498,14 @@ class DuckDbConnection implements DatabaseConnection {
         await reader.readUntil(reader.currentRowCount + Math.max(chunkSize, 1))
 
         // Get all rows read so far
-        const allRows = reader.getRowObjects()
+        const allRows = reader.convertRowObjects(this.#converter)
 
         // Process only the new rows we haven't processed yet
         if (allRows.length > processedRowCount) {
           const newRows = allRows.slice(processedRowCount)
 
           // Process rows: parse JSON/UUID columns and convert DuckDBListValue to arrays
-          const processedRows = processRows(newRows, reader, this.#uuidAsString)
+          const processedRows = processRows(newRows, reader)
 
           // Yield in chunks of the requested size
           for (let i = 0; i < processedRows.length; i += chunkSize) {
