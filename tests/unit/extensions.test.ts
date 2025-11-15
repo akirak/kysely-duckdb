@@ -649,7 +649,7 @@ describe('DuckDB Extensions', () => {
       expect(Array.isArray(zeroVec)).toBe(true)
       if (Array.isArray(zeroVec)) {
         expect(zeroVec).toHaveLength(3)
-        expect(zeroVec.every((v: unknown) => typeof v === 'object' && v !== null)).toBe(true)
+        expect(zeroVec.every((v: unknown) => typeof v === 'number' && v !== null)).toBe(true)
       }
       const randomVec = (result as any)?.random_vec
       expect(Array.isArray(randomVec)).toBe(true)
