@@ -77,11 +77,11 @@
     "changelog:update": "release-it-preset update"
   },
   "dependencies": {
-    "@duckdb/node-api": "1.4.0-r.2",
     "kysely": "^0.28.7",
     "valibot": "^1.1.0"
   },
   "devDependencies": {
+    "@duckdb/node-api": "1.4.1-r.4",
     "@biomejs/biome": "^2.2.5",
     "@oorabona/release-it-preset": "^0.9.0",
     "@types/node": "^24.6.2",
